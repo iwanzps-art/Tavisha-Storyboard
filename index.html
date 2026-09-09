@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Storyboard Gen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+    <div class="container mx-auto max-w-xl">
+        <h1 class="text-3xl font-extrabold text-indigo-400 mb-8 text-center tracking-tight">AI Storyboard Gen</h1>
+        
+        <section class="space-y-4 bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-2xl">
+            <textarea id="idea" rows="3" class="w-full p-4 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition" placeholder="Tuliskan ide cerita Anda di sini..."></textarea>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <select id="sceneCount" class="w-full p-3 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 outline-none transition">
+                    <option value="1">1 Adegan</option>
+                    <option value="3">3 Adegan</option>
+                    <option value="5">5 Adegan</option>
+                    <option value="8">8 Adegan</option>
+                </select>
+                <select id="duration" class="w-full p-3 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 outline-none transition">
+                    <option value="6">6 Detik</option>
+                    <option value="8">8 Detik</option>
+                    <option value="10">10 Detik</option>
+                </select>
+                <select id="imageStyle" class="w-full p-3 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 outline-none transition">
+                    <option value="Cinematic">Cinematic</option>
+                    <option value="Anime">Anime</option>
+                    <option value="Oil Painting">Oil Painting</option>
+                    <option value="Photorealistic">Photorealistic</option>
+                    <option value="3D Animation">3D Animation</option>
+                </select>
+                <select id="language" class="w-full p-3 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 outline-none transition">
+                    <option value="Indonesian">Indonesian</option>
+                    <option value="English">English</option>
+                </select>
+                <select id="contentType" class="w-full p-3 rounded-xl bg-gray-950 border border-gray-700 focus:border-indigo-500 outline-none transition">
+                    <option value="None">Kosong</option>
+                    <option value="Narasi">Narasi (Deskriptif)</option>
+                    <option value="Dialog">Dialog (Percakapan)</option>
+                </select>
+            </div>
+            <button id="generateBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-xl font-bold shadow-lg shadow-indigo-900/20 transition">Generate Storyboard</button>
+        </section>
+
+        <div id="loading" class="hidden my-8 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+            <p class="mt-2 text-indigo-400 font-medium">Sedang memproses storyboard...</p>
+        </div>
+        <div id="results" class="mt-8 space-y-4"></div>
+
+        <!-- History Area -->
+        <section id="historySection" class="hidden mt-12">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-300">Riwayat Storyboard</h2>
+                <button onclick="clearAllHistory()" class="text-xs text-red-400 hover:text-red-300">Hapus Semua</button>
+            </div>
+            <div id="historyList" class="space-y-3"></div>
+        </section>
+    </div>
+
+    <script>
+        function saveToHistory(idea, scenes) {
+            const history = JSON.parse(localStorage.getItem('storyboard_history') || '[]');
+            history.unshift({ id: Date.now(), idea, scenes });
+            localStorage.setItem('storyboard_history', JSON.stringify(history.slice(0, 10)));
+            loadHistory();
+        }
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('storyboard_history') || '[]');
+            const historySection = document.getElementById('historySection');
+            const historyList = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                historySection.classList.add('hidden');
+                return;
+            }
+
+            historySection.classList.remove('hidden');
+            historyList.innerHTML = history.map(item => `
+                <div class="flex items-center gap-2 bg-gray-900 p-3 rounded-lg border border-gray-800">
+                    <button onclick="displayHistoryItem(${item.id})" class="flex-1 text-left min-w-0">
+                        <p class="font-bold text-indigo-300 truncate text-sm">${item.idea}</p>
+                        <p class="text-xs text-gray-500">${new Date(item.id).toLocaleString()}</p>
+                    </button>
+                    <button onclick="deleteHistoryItem(${item.id})" class="text-gray-500 hover:text-red-400 p-2 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        window.deleteHistoryItem = (id) => {
+            let history = JSON.parse(localStorage.getItem('storyboard_history') || '[]');
+            history = history.filter(item => item.id !== id);
+            localStorage.setItem('storyboard_history', JSON.stringify(history));
+            loadHistory();
+        };
+
+        window.clearAllHistory = () => {
+            if (confirm('Hapus semua riwayat?')) {
+                localStorage.removeItem('storyboard_history');
+                loadHistory();
+            }
+        };
+
+        window.displayHistoryItem = (id) => {
+            const history = JSON.parse(localStorage.getItem('storyboard_history') || '[]');
+            const item = history.find(h => h.id === id);
+            if (item) {
+                document.getElementById('idea').value = item.idea;
+                renderResults(item.scenes);
+            }
+        };
+
+        window.copyAll = (scenes) => {
+            let fullText = scenes.map((s, i) => 
+                `Adegan ${i + 1}:\nNarasi: ${s.narasi}\nImage Prompt: ${s.imagePrompt}\nVideo Prompt: ${s.videoPrompt}\n\n`
+            ).join('');
+            navigator.clipboard.writeText(fullText).then(() => alert('Semua storyboard disalin!'));
+        };
+
+        window.downloadJson = (scenes) => {
+            try {
+                const jsonString = JSON.stringify(scenes, null, 2);
+                const blob = new Blob([jsonString], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = "storyboard.json";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert("Error saat download: " + e.message);
+            }
+        };
+
+        window.renderResults = (scenes) => {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            const scenesJSON = JSON.stringify(scenes).replace(/"/g, '&quot;');
+
+            resultsDiv.innerHTML = `
+                <div class="flex gap-2 mb-4">
+                    <button onclick="window.copyAll(${scenesJSON})" class="flex-1 flex justify-center items-center gap-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-3 rounded-xl transition active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        Copy All
+                    </button>
+                    <button onclick="window.downloadJson(${scenesJSON})" class="flex-1 flex justify-center items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition active:scale-95">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Download JSON
+                    </button>
+                </div>
+            `;
+            
+            scenes.map((s, i) => `
+                <div class="bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 fade-in">
+                    <h2 class="text-2xl font-bold text-indigo-400">Adegan ${i + 1}</h2>
+                    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg> Narasi</h3>
+                        <p class="text-gray-200 text-sm leading-relaxed">${s.narasi}</p>
+                    </div>
+                    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Image Prompt</h3>
+                            <button onclick="navigator.clipboard.writeText('${s.imagePrompt.replace(/'/g, "\\'")}')" class="text-[10px] bg-gray-800 hover:bg-indigo-900 text-indigo-300 px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy</button>
+                        </div>
+                        <p class="text-xs italic text-gray-400">${s.imagePrompt}</p>
+                    </div>
+                    <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Video Prompt</h3>
+                            <button onclick="navigator.clipboard.writeText('${s.videoPrompt.replace(/'/g, "\\'")}')" class="text-[10px] bg-gray-800 hover:bg-indigo-900 text-indigo-300 px-3 py-1.5 rounded-lg transition font-bold flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg> Copy</button>
+                        </div>
+                        <p class="text-xs italic text-gray-400">${s.videoPrompt}</p>
+                    </div>
+                </div>
+            `).forEach(html => resultsDiv.innerHTML += html);
+
+            resultsDiv.classList.remove('hidden');
+        };
+
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const idea = document.getElementById('idea').value;
+            const sceneCount = document.getElementById('sceneCount').value;
+            const duration = document.getElementById('duration').value;
+            const imageStyle = document.getElementById('imageStyle').value;
+            const language = document.getElementById('language').value;
+            const contentType = document.getElementById('contentType').value;
+            const resultsDiv = document.getElementById('results');
+            const loadingDiv = document.getElementById('loading');
+
+            if (!idea) { alert('Masukkan ide!'); return; }
+
+            loadingDiv.classList.remove('hidden');
+            resultsDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idea, sceneCount, duration, imageStyle, language, contentType })
+                });
+                const scenes = await response.json();
+                
+                if (scenes.error) throw new Error(scenes.error);
+                
+                loadingDiv.classList.add('hidden');
+                saveToHistory(idea, scenes);
+                renderResults(scenes);
+            } catch (err) {
+                loadingDiv.classList.add('hidden');
+                alert(err.message);
+            }
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>
